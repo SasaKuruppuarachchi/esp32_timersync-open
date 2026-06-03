@@ -95,13 +95,13 @@ static void increment_time_hms() {
   }
 }
 
-static void emit_gprmc() {
+static void emit_gprmc(uint8_t hh, uint8_t mm, uint8_t ss) {
   char body[96];
   snprintf(body, sizeof(body),
            "GPRMC,%02u%02u%02u.00,A,"
            "2237.496474,N,11356.089515,E,"
            "0.0,225.5,230520,2.3,W,A",
-           s_hh, s_mm, s_ss);
+           hh, mm, ss);
 
   uint8_t cs = 0;
   for (const char *p = body; *p; p++) {
@@ -121,12 +121,21 @@ static void sync_timer_callback(void *arg) {
 
   if (s_sync_high) {
     ledc_timer_rst(LEDC_LOW_SPEED_MODE, LEDC_TIMER_0);
-    increment_time_hms();
-    emit_gprmc();
+    increment_time_hms();  // keep free-running counter for diagnostics
     digitalWrite(PIN_STATUS_LED, !digitalRead(PIN_STATUS_LED));
 
-    Serial.printf("[1Hz] %02u:%02u:%02u - GPRMC emitted, 10Hz phase reset\n",
-                  s_hh, s_mm, s_ss);
+    if (s_clock_state == LOCKED) {
+      uint64_t disc_s = disc_get_unix_us() / 1000000ULL;
+      uint8_t d_hh = (uint8_t)((disc_s % 86400ULL) / 3600ULL);
+      uint8_t d_mm = (uint8_t)((disc_s % 3600ULL)  / 60ULL);
+      uint8_t d_ss = (uint8_t)(disc_s % 60ULL);
+      emit_gprmc(d_hh, d_mm, d_ss);
+      Serial.printf("[1Hz] disc=%02u:%02u:%02u free=%02u:%02u:%02u - GPRMC emitted (LOCKED), 10Hz phase reset\n",
+                    d_hh, d_mm, d_ss, s_hh, s_mm, s_ss);
+    } else {
+      Serial.printf("[1Hz] free=%02u:%02u:%02u - GPRMC SUPPRESSED (clk=%s), 10Hz phase reset\n",
+                    s_hh, s_mm, s_ss, clock_state_name(s_clock_state));
+    }
   }
 }
 
@@ -331,7 +340,7 @@ void setup() {
   ESP_ERROR_CHECK(esp_timer_start_periodic(s_sync_timer, 500000));
 
   Serial.println();
-  Serial.println("=== ESP32-S3 Phase 3 Timing Firmware ===");
+  Serial.println("=== ESP32-S3 Phase 4 Timing Firmware ===");
   Serial.println("Board: DFRobot FireBeetle2 ESP32-S3");
   Serial.printf("10Hz PWM trigger: GPIO %d (LEDC low-speed timer0, 50%% duty)\n", PIN_TRIGGER_10HZ);
   Serial.printf("1Hz sync pulse:   GPIO %d (esp_timer 500ms toggle, 50%% duty)\n", PIN_SYNC_1HZ);
@@ -342,6 +351,7 @@ void setup() {
   Serial.println("DDS sync gate:    SYSTEM_TIME unix_us > 1e15 us (year >2001)");
   Serial.println("Clock discipline: UNLOCKED -> WARMING(3 samples) -> LOCKED");
   Serial.printf("Max slew:         %lld us/update  (D6 monotonic invariant)\n", (long long)DISC_MAX_SLEW_US);
+  Serial.println("GPRMC output:     disciplined UTC when LOCKED, suppressed otherwise");
   Serial.println("Invariant: on each 1Hz rising edge -> LEDC timer reset + monotonic time increment + GPRMC emit");
 }
 
