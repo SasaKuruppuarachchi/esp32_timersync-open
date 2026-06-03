@@ -14,12 +14,11 @@ This board replaces the STM32F103 timing board used in the sensor stack. In Phas
 
 ## Current Phase
 
-Phase 1 is board bring-up only:
+Phase 1: Board bring-up — COMPLETE (verified on bench)
 
-- free-running operation
-- no MAVLink clock discipline
-- no PX4 integration yet
-- only local verification of GPIO timing and GPRMC output
+Phase 2: MAVLink link bring-up — ACTIVE (requires PX4 hardware)
+
+Phases 3–5 blocked on Phase 2 completion
 
 ## Phase 1 Hardware
 
@@ -41,6 +40,16 @@ Recommended:
 | GPRMC UART1 TX | 17 | USB-serial adapter RX | Required for serial verification |
 | GPRMC UART1 RX | 18 | Unused | Reserved for future phases |
 | Status LED | 2 | On-board LED | Toggled at 0.5 Hz for liveness |
+
+## Phase 2 Wiring
+
+| Function | GPIO | Destination | Note |
+|---|---:|---|---|
+| MAVLink UART2 TX | 21 | PX4 UART RX (e.g. TELEM2) | 3.3V logic, cross TX→RX |
+| MAVLink UART2 RX | 20 | PX4 UART TX | 3.3V logic, cross RX→TX |
+| GND | GND | PX4 GND | common ground required |
+
+Note: baud rate is 57600 by default (constant MAVLINK_BAUD in main.cpp). Check PX4 parameter SER_TELx_BAUD for the target port; change the constant if needed (OQ2).
 
 ## Build And Flash
 
@@ -74,6 +83,20 @@ Expected 10 second heartbeat format:
 [HB] uptime=10s time=00:00:10
 ```
 
+## Phase 2 Expected Console Output
+
+- Startup banner now says "Phase 2"
+- Heartbeat log unchanged
+- New MAVLink log lines:
+
+```text
+[MAV] HEARTBEAT sysid=1 compid=1 type=2 autopilot=12 base_mode=0x89 state=4
+[MAV] SYSTEM_TIME unix_us=1748476800000000 boot_ms=12345
+[MAV] TIMESYNC sent ts1=12345678000 ns
+[MAV] TIMESYNC RTT=4500 us  offset_est=-200 us
+[MAV] GPS_RAW_INT fix=3 sats=12 time_us=1748476800000000
+```
+
 ## Expected GPRMC Output On GPIO 17
 
 The UART1 output is a valid NMEA `$GPRMC` sentence at 9600 baud. It uses the Beijing position, a static date, and free-running time starting at 00:00:01.
@@ -93,7 +116,19 @@ $GPRMC,000001.00,A,2237.496474,N,11356.089515,E,0.0,225.5,230520,2.3,W,A*XX
 - confirm GPIO 17 emits GPRMC sentences at 9600 baud
 - confirm the GPRMC sentence is parseable by the host-side receiver
 
+## Phase 2 Verification Checklist
+
+- Wire ESP32 UART2 (GPIO 20/21) to PX4 telemetry UART with crossed TX/RX and shared GND
+- Flash and open USB-CDC monitor at 115200
+- Confirm `[MAV] HEARTBEAT` lines appear (proves bidirectional link)
+- Confirm `[MAV] SYSTEM_TIME` is received with a non-zero unix_us (proves PX4 has GPS lock)
+- Confirm `[MAV] TIMESYNC RTT` shows a round-trip time < 50 ms consistently
+- Confirm `[MAV] GPS_RAW_INT fix=3` or higher (3D fix)
+- Confirm Phase 1 outputs (1 Hz log, 10 Hz scope) are still working during MAVLink traffic
+- Report: HEARTBEAT received Y/N, SYSTEM_TIME unix_us value, typical RTT, GPS fix type
+
 ## Open Items
 
 - OQ1: confirm the GPIO pin mapping against the schematic before wiring the final harness
+- OQ2: PX4 telemetry baud alignment (default 57600, change MAVLINK_BAUD constant if PX4 port is configured differently)
 - OQ5: confirm the host serial device path once the USB-serial adapter is connected, since it may enumerate as `/dev/ttyUSBx` or `/dev/ttyACMx`
