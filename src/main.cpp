@@ -95,13 +95,41 @@ static void increment_time_hms() {
   }
 }
 
-static void emit_gprmc(uint8_t hh, uint8_t mm, uint8_t ss) {
+static void unix_us_to_ddmmyy(uint64_t unix_us, uint8_t &dd, uint8_t &mm_out, uint8_t &yy) {
+  uint32_t days = (uint32_t)(unix_us / 86400000000ULL);
+  uint32_t y = 1970;
+  while (true) {
+    bool leap = (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0));
+    uint32_t diy = leap ? 366u : 365u;
+    if (days < diy) break;
+    days -= diy;
+    y++;
+  }
+  static const uint8_t dim[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
+  bool leap = (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0));
+  for (uint8_t m = 0; m < 12; m++) {
+    uint8_t d = dim[m] + (uint8_t)(m == 1 && leap ? 1 : 0);
+    if (days < d) { mm_out = m + 1; dd = (uint8_t)(days + 1); yy = (uint8_t)(y % 100); return; }
+    days -= d;
+  }
+}
+
+static void emit_gprmc(uint64_t unix_us) {
+  uint64_t unix_s = unix_us / 1000000ULL;
+  uint8_t d_hh = (uint8_t)((unix_s % 86400ULL) / 3600ULL);
+  uint8_t d_mm = (uint8_t)((unix_s % 3600ULL)  / 60ULL);
+  uint8_t d_ss = (uint8_t)(unix_s % 60ULL);
+  uint8_t d_day = 0;
+  uint8_t d_mon = 0;
+  uint8_t d_yy = 0;
+  unix_us_to_ddmmyy(unix_us, d_day, d_mon, d_yy);
+
   char body[96];
   snprintf(body, sizeof(body),
            "GPRMC,%02u%02u%02u.00,A,"
            "2237.496474,N,11356.089515,E,"
-           "0.0,225.5,230520,2.3,W,A",
-           hh, mm, ss);
+           "0.0,225.5,%02u%02u%02u,2.3,W,A",
+           d_hh, d_mm, d_ss, d_day, d_mon, d_yy);
 
   uint8_t cs = 0;
   for (const char *p = body; *p; p++) {
@@ -124,11 +152,12 @@ static void sync_timer_callback(void *arg) {
     increment_time_hms();  // keep free-running counter for diagnostics
 
     if (s_clock_state == LOCKED) {
-      uint64_t disc_s = disc_get_unix_us() / 1000000ULL;
+      uint64_t disc_us = disc_get_unix_us();
+      uint64_t disc_s  = disc_us / 1000000ULL;
       uint8_t d_hh = (uint8_t)((disc_s % 86400ULL) / 3600ULL);
       uint8_t d_mm = (uint8_t)((disc_s % 3600ULL)  / 60ULL);
       uint8_t d_ss = (uint8_t)(disc_s % 60ULL);
-      emit_gprmc(d_hh, d_mm, d_ss);
+      emit_gprmc(disc_us);
       Serial.printf("[1Hz] disc=%02u:%02u:%02u free=%02u:%02u:%02u - GPRMC emitted (LOCKED), 10Hz phase reset\n",
                     d_hh, d_mm, d_ss, s_hh, s_mm, s_ss);
     } else {
