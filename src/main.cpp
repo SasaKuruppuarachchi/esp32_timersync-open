@@ -9,7 +9,7 @@
 static constexpr int PIN_TRIGGER_10HZ = 4; // A0
 static constexpr int PIN_SYNC_1HZ = 5; // A1
 static constexpr int PIN_GPRMC_TX = 12; // D12
-static constexpr int PIN_GPRMC_RX = 21; // D13
+static constexpr int PIN_GPRMC_RX = 13; // D11
 
 #if defined(LED_BUILTIN)
 static constexpr int PIN_STATUS_LED = LED_BUILTIN;
@@ -122,7 +122,6 @@ static void sync_timer_callback(void *arg) {
   if (s_sync_high) {
     ledc_timer_rst(LEDC_LOW_SPEED_MODE, LEDC_TIMER_0);
     increment_time_hms();  // keep free-running counter for diagnostics
-    digitalWrite(PIN_STATUS_LED, !digitalRead(PIN_STATUS_LED));
 
     if (s_clock_state == LOCKED) {
       uint64_t disc_s = disc_get_unix_us() / 1000000ULL;
@@ -136,6 +135,46 @@ static void sync_timer_callback(void *arg) {
       Serial.printf("[1Hz] free=%02u:%02u:%02u - GPRMC SUPPRESSED (clk=%s), 10Hz phase reset\n",
                     s_hh, s_mm, s_ss, clock_state_name(s_clock_state));
     }
+  }
+}
+
+static void led_update() {
+  // Non-blocking state-driven LED blink patterns.
+  // Encodes patterns as flat arrays: {on_ms, off_ms, on_ms, off_ms, ...}
+  // Even indices = LED ON, odd indices = LED OFF.
+  static const uint16_t PAT_UNLOCKED[] = {100, 100};
+  static const uint16_t PAT_WARMING[]  = {100, 100, 100, 700};
+  static const uint16_t PAT_LOCKED[]   = { 50, 950};
+  static const uint16_t PAT_DEGRADED[] = {100, 100, 100, 100, 100, 500};
+
+  static uint32_t s_led_step_start = 0;
+  static uint8_t  s_led_step       = 0;
+  static ClockState s_led_last_state = UNLOCKED;
+
+  const uint16_t* pat;
+  uint8_t         pat_len;
+  switch (s_clock_state) {
+    case WARMING:  pat = PAT_WARMING;  pat_len = 4; break;
+    case LOCKED:   pat = PAT_LOCKED;   pat_len = 2; break;
+    case DEGRADED: pat = PAT_DEGRADED; pat_len = 6; break;
+    default:       pat = PAT_UNLOCKED; pat_len = 2; break;
+  }
+
+  // Reset step index when state changes
+  if (s_clock_state != s_led_last_state) {
+    s_led_last_state = s_clock_state;
+    s_led_step       = 0;
+    s_led_step_start = millis();
+    digitalWrite(PIN_STATUS_LED, HIGH);  // start every pattern with ON
+    return;
+  }
+
+  uint32_t elapsed = millis() - s_led_step_start;
+  if (elapsed >= pat[s_led_step]) {
+    s_led_step = (s_led_step + 1) % pat_len;
+    s_led_step_start = millis();
+    // Even step index = ON, odd = OFF
+    digitalWrite(PIN_STATUS_LED, (s_led_step % 2 == 0) ? HIGH : LOW);
   }
 }
 
@@ -392,5 +431,6 @@ void loop() {
     }
   }
 
+  led_update();
   delay(20);
 }

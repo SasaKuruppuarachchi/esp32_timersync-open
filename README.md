@@ -73,7 +73,7 @@ Every 1 Hz rising edge: LEDC timer reset (phase-aligns 10 Hz) → time increment
 | 10 Hz camera trigger | 4 | OUT | MVS camera Line0 OPTO_IN |
 | 1 Hz PPS sync | 5 | OUT | Mid-360 M12 PPS interface (direct TTL) |
 | GPRMC UART1 TX | 12 | OUT | USB-serial adapter → host `/dev/ttyUSB0` |
-| GPRMC UART1 RX | 21 | IN | Reserved, unused |
+| GPRMC UART1 RX | 13 | IN | Reserved, unused |
 | MAVLink UART2 TX | 38 | OUT | PX4 TELEM UART RX |
 | MAVLink UART2 RX | 3 | IN | PX4 TELEM UART TX |
 | Status LED | 2 | OUT | On-board LED (0.5 Hz blink when LOCKED) |
@@ -93,7 +93,7 @@ Every 1 Hz rising edge: LEDC timer reset (phase-aligns 10 Hz) → time increment
   │  (1 Hz PPS TTL 50% duty)                            │  M12 PPS interface
   │                                                     │  (direct TTL, no RS485)
   │  GPIO 12 (UART1 TX) ──┐                             │
-  │  GPIO 21 (UART1 RX) ──┤                             │
+  │  GPIO 13 (UART1 RX) ──┤                             │
   │  (9600 baud GPRMC)    │                             │
   │                       ▼                             │
   │                  USB-Serial adapter                 │
@@ -179,7 +179,7 @@ minicom -D /dev/ttyUSB0 -b 9600
 Board: DFRobot FireBeetle2 ESP32-S3
 10Hz PWM trigger: GPIO 4 (LEDC low-speed timer0, 50% duty)
 1Hz sync pulse:   GPIO 5 (esp_timer 500ms toggle, 50% duty)
-GPRMC UART1:      TX GPIO 12, RX GPIO 21 @ 9600 baud
+GPRMC UART1:      TX GPIO 12, RX GPIO 13 @ 9600 baud
 MAVLink UART2:    TX GPIO 38, RX GPIO 3 @ 57600 baud
 DDS sync gate:    SYSTEM_TIME unix_us > 1e15 us (year >2001)
 Clock discipline: UNLOCKED -> WARMING(3 samples) -> LOCKED
