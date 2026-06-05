@@ -104,10 +104,10 @@ SER_GPS2_OPTIONS=0  # No flow control, no 9-bit, etc
   │  (10 Hz PWM 50% duty)                               │  Line0 OPTO_IN PIN 2
   │                                                     │
   │  GPIO 5  ──────────────────────────────────────────►│  Livox Mid-360
-  │  (1 Hz PPS TTL 50% duty)                            │  M12 PPS interface (Pin 8, Purple/white)
-  │                                                     │  (direct TTL, no RS485)
-  │  GPIO 12 (UART1 TX) ──┐────────────────────────────►│  M12 GPS input (Pin 10, Gray/white, UART 9600)
-  │  GPIO 13 (UART1 RX) ──┤                             │
+  │  (1 Hz PPS TTL 50% duty)                            │  M12 PPS interface (Pin 8, Purple/white)*
+  │                                                     │  
+  │  GPIO 12 (UART1 TX) ──┐────────────────────────────►│  M12 GPS input (Pin 10, Gray/white, UART 9600)*
+  │  GPIO 13 (UART1 RX) ──┤                             │             
   │  (9600 baud GPRMC)    │                             │
   │                       ▼                             │
   │                  USB-Serial adapter                 │
@@ -126,7 +126,7 @@ SER_GPS2_OPTIONS=0  # No flow control, no 9-bit, etc
   │                                                     │
   └─────────────────────────────────────────────────────┘
 ```
-
+*(direct TTL for Mid-360 or when using the Livox converter 2.0, but RS485 is needed when using other LiDARs )
 > **Mid-360 PPS note:** The Mid-360 accepts direct TTL on its M12 PPS interface. No TTL-to-RS485 converter is required.
 
 > **UART TX/RX crossing:** GPIO 38 (TX) → PX4 GPS2 RX, GPIO 3 (RX) ← PX4 GPS2 TX. Cross the wires. Shared GND is mandatory.
