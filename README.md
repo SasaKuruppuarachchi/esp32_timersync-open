@@ -1,5 +1,7 @@
 # ESP32 TimerSync Bridge
 
+The default timesync method for Livox Lidars are PTP. But unfortunatly Jetson NX does not support PTP. The alternative in the official documentation is to use PPS syncronisation with GPS. As indoor focused robots do not have GPS, we designed the following solution to provide GPRMC and PPS signals to the Livox LiDAR and Px4 via a ESP32.
+
 Firmware for the DFRobot FireBeetle 2 ESP32-S3 that replaces the STM32F103 timing board in a LiDAR–camera sensor stack. The ESP32 generates three hardware-synchronised outputs and disciplines its clock to the PX4 flight controller via MAVLink over UART.
 
 ![Overview](images/hw_sync.png)
@@ -72,11 +74,11 @@ Every 1 Hz rising edge: LEDC timer reset (phase-aligns 10 Hz) → time increment
 | Function | GPIO | Direction | Destination |
 |---|---:|---|---|
 | 10 Hz camera trigger | 4 | OUT | MVS camera Line0 OPTO_IN |
-| 1 Hz PPS sync | 5 | OUT | Mid-360 M12 PPS interface (direct TTL) |
-| GPRMC UART1 TX | 12 | OUT | Mid-360 M12 GPS input (Gray/white, UART 9600) |
+| 1 Hz PPS sync | 5 | OUT | Mid-360 M12 PPS interface (Pin 8, purple/white) (direct TTL) |
+| GPRMC UART1 TX | 12 | OUT | Mid-360 M12 GPS input (Pin 10, Gray/white, UART 9600) |
 | GPRMC UART1 RX | 13 | IN | Reserved, unused |
-| MAVLink UART2 TX | 38 | OUT | PX4 TELEM UART RX |
-| MAVLink UART2 RX | 3 | IN | PX4 TELEM UART TX |
+| MAVLink UART2 TX | 38 | OUT | PX4 GPS2 RX |
+| MAVLink UART2 RX | 3 | IN | PX4 GPS2 TX |
 | Status LED | 2 | OUT | On-board LED (0.5 Hz blink when LOCKED) |
 
 ---
@@ -90,7 +92,8 @@ for refrance the project uses GPS2 port on PX4, so the parameters are:
 MAV_1_CONFIG=GPS2
 SER_GPS2_BAUD=57600
 SER_GPS2_PROTO=1  # MAVLink v2
-SER_GPS2_OPTIONS=0  # No flow control, no 9-bit, etc
+SER_GPS2_OPTIONS=0  # No flow control, no 9-bit, 
+UXRCE_DDS_SYCT=1
 ```
 ---
 
@@ -340,3 +343,10 @@ esp32_timersync-open/
     ├── PLAN.md               # Phase-gated implementation plan
     └── DECISIONS.md          # Resolved decisions and open questions
 ```
+
+## Documentaion Reference
+
+* [Wiki](https://github.com/Livox-SDK/Livox-SDK/wiki/livox-device-time-synchronization-manual)
+* [PX4](https://discuss.px4.io/t/how-to-test-the-time-synchronization-between-radar-and-camera)
+* [Livox ROS Driver](https://github.com/Livox-SDK/livox_ros_driver2)
+* [LIV_handhold](https://github.com/xuankuzcr/LIV_handhold)
